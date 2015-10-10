@@ -7,8 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		D70309D21BC8FACB00A7C698 /* APLAppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = D70309D11BC8FACB00A7C698 /* APLAppDelegate.swift */; settings = {ASSET_TAGS = (); }; };
-		D70309EB1BC98BDA00A7C698 /* APLViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D78DAAFC1BBFAC1200C35611 /* APLViewController.swift */; settings = {ASSET_TAGS = (); }; };
+		D70309F01BC9976F00A7C698 /* APLAppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = D70309EE1BC9976F00A7C698 /* APLAppDelegate.swift */; settings = {ASSET_TAGS = (); }; };
+		D70309F11BC9976F00A7C698 /* APLViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D70309EF1BC9976F00A7C698 /* APLViewController.swift */; settings = {ASSET_TAGS = (); }; };
 		D732C6681BBF80B100C82F30 /* APLEAGLView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D732C6671BBF80B100C82F30 /* APLEAGLView.swift */; };
 		D732C66A1BBF80C100C82F30 /* NumTypes+Conversion.swift in Sources */ = {isa = PBXBuildFile; fileRef = D732C6691BBF80C100C82F30 /* NumTypes+Conversion.swift */; };
 		EF1D1FDE1627784E0030141F /* UIKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = EF1D1FDD1627784E0030141F /* UIKit.framework */; };
@@ -32,12 +32,12 @@
 
 /* Begin PBXFileReference section */
 		28D8529516B880200065C6E1 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
-		D70309D11BC8FACB00A7C698 /* APLAppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = APLAppDelegate.swift; sourceTree = "<group>"; };
 		D70309D31BC8FB7100A7C698 /* LICENSE.txt */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text; path = LICENSE.txt; sourceTree = "<group>"; };
 		D70309EC1BC994D100A7C698 /* README2.md */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = net.daringfireball.markdown; path = README2.md; sourceTree = "<group>"; };
+		D70309EE1BC9976F00A7C698 /* APLAppDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = APLAppDelegate.swift; path = AVBasicVideoOutput/APLAppDelegate.swift; sourceTree = "<group>"; };
+		D70309EF1BC9976F00A7C698 /* APLViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = APLViewController.swift; path = AVBasicVideoOutput/APLViewController.swift; sourceTree = "<group>"; };
 		D732C6671BBF80B100C82F30 /* APLEAGLView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = APLEAGLView.swift; path = AVBasicVideoOutput/APLEAGLView.swift; sourceTree = "<group>"; };
 		D732C6691BBF80C100C82F30 /* NumTypes+Conversion.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; name = "NumTypes+Conversion.swift"; path = "AVBasicVideoOutput/NumTypes+Conversion.swift"; sourceTree = "<group>"; };
-		D78DAAFC1BBFAC1200C35611 /* APLViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = APLViewController.swift; sourceTree = "<group>"; };
 		EF1D1FD91627784E0030141F /* AVBasicVideoOutput.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AVBasicVideoOutput.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		EF1D1FDD1627784E0030141F /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = System/Library/Frameworks/UIKit.framework; sourceTree = SDKROOT; };
 		EF1D1FDF1627784E0030141F /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = System/Library/Frameworks/Foundation.framework; sourceTree = SDKROOT; };
@@ -118,9 +118,9 @@
 		EF1D1FE71627784E0030141F /* AVBasicVideoOutput */ = {
 			isa = PBXGroup;
 			children = (
-				D70309D11BC8FACB00A7C698 /* APLAppDelegate.swift */,
+				D70309EE1BC9976F00A7C698 /* APLAppDelegate.swift */,
 				D732C6671BBF80B100C82F30 /* APLEAGLView.swift */,
-				D78DAAFC1BBFAC1200C35611 /* APLViewController.swift */,
+				D70309EF1BC9976F00A7C698 /* APLViewController.swift */,
 				EF1D20011627784E0030141F /* Shader.vsh */,
 				EF1D1FFF1627784E0030141F /* Shader.fsh */,
 				EF1D1FE81627784E0030141F /* Supporting Files */,
@@ -215,9 +215,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				D732C66A1BBF80C100C82F30 /* NumTypes+Conversion.swift in Sources */,
-				D70309D21BC8FACB00A7C698 /* APLAppDelegate.swift in Sources */,
-				D70309EB1BC98BDA00A7C698 /* APLViewController.swift in Sources */,
 				D732C6681BBF80B100C82F30 /* APLEAGLView.swift in Sources */,
+				D70309F11BC9976F00A7C698 /* APLViewController.swift in Sources */,
+				D70309F01BC9976F00A7C698 /* APLAppDelegate.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
