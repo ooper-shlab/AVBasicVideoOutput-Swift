@@ -232,7 +232,7 @@ class APLViewController: UIViewController, AVPlayerItemOutputPullDelegate, UIIma
         player.actionAtItemEnd = .None
         _notificationToken = NSNotificationCenter.defaultCenter().addObserverForName(AVPlayerItemDidPlayToEndTimeNotification, object: item, queue: NSOperationQueue.mainQueue()) {note in
             // Simple item playback rewind.
-            player.currentItem?.seekToTime(kCMTimeZero)
+            self.player.currentItem?.seekToTime(kCMTimeZero)
         }
     }
     
