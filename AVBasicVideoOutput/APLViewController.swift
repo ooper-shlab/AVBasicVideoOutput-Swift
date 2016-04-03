@@ -63,7 +63,7 @@ class APLViewController: UIViewController, AVPlayerItemOutputPullDelegate, UIIma
         self.addTimeObserverToPlayer()
         
         // Setup CADisplayLink which will callback displayPixelBuffer: at every vsync.
-        self.displayLink = CADisplayLink(target: self, selector: "displayLinkCallback:")
+        self.displayLink = CADisplayLink(target: self, selector: #selector(APLViewController.displayLinkCallback(_:)))
         self.displayLink.addToRunLoop(NSRunLoop.currentRunLoop(), forMode: NSDefaultRunLoopMode)
         self.displayLink.paused = true
         

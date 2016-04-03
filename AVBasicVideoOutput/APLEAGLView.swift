@@ -412,9 +412,10 @@ class APLEAGLView: UIView {
         }
         
         var status: GLint = 0
-        sourceString.withCString {(var source: UnsafePointer<GLchar>)->Void in
+        sourceString.withCString {(_source: UnsafePointer<GLchar>)->Void in
             
             shader.memory = glCreateShader(type)
+            var source = _source
             glShaderSource(shader.memory, 1, &source, nil)
             glCompileShader(shader.memory)
         }
