@@ -27,7 +27,7 @@ let UNIFORM_CHROMA_THRESHOLD = 3
 let UNIFORM_ROTATION_ANGLE = 4
 let UNIFORM_COLOR_CONVERSION_MATRIX = 5
 let NUM_UNIFORMS = 6
-var uniforms: [GLint] = Array(count: NUM_UNIFORMS, repeatedValue: 0)
+var uniforms: [GLint] = Array(repeating: 0, count: NUM_UNIFORMS)
 
 // Attribute index.
 let ATTRIB_VERTEX = 0
@@ -59,41 +59,41 @@ class APLEAGLView: UIView {
     var lumaThreshold: GLfloat = 0.0
     
     // The pixel dimensions of the CAEAGLLayer.
-    private var _backingWidth: GLint = 0
-    private var _backingHeight: GLint = 0
+    fileprivate var _backingWidth: GLint = 0
+    fileprivate var _backingHeight: GLint = 0
     
-    private var _context: EAGLContext?
-    private var _lumaTexture: CVOpenGLESTextureRef?
-    private var _chromaTexture: CVOpenGLESTextureRef?
-    private var _videoTextureCache: CVOpenGLESTextureCacheRef?
+    fileprivate var _context: EAGLContext?
+    fileprivate var _lumaTexture: CVOpenGLESTexture?
+    fileprivate var _chromaTexture: CVOpenGLESTexture?
+    fileprivate var _videoTextureCache: CVOpenGLESTextureCache?
     
-    private var _frameBufferHandle: GLuint = 0
-    private var _colorBufferHandle: GLuint = 0
+    fileprivate var _frameBufferHandle: GLuint = 0
+    fileprivate var _colorBufferHandle: GLuint = 0
     
-    private var _preferredConversion: UnsafePointer<GLfloat> = nil
+    fileprivate var _preferredConversion: UnsafePointer<GLfloat>? = nil
     
-    private var program: GLuint = 0
+    fileprivate var program: GLuint = 0
     
-    override class func layerClass() -> AnyClass {
+    override class var layerClass : AnyClass {
         return CAEAGLLayer.self
     }
     
     required init?(coder aDecoder: NSCoder) {
         super.init(coder: aDecoder)
         // Use 2x scale factor on Retina displays.
-        self.contentScaleFactor = UIScreen.mainScreen().scale
+        self.contentScaleFactor = UIScreen.main.scale
         
         // Get and configure the layer.
         let eaglLayer = self.layer as! CAEAGLLayer
         
-        eaglLayer.opaque = true
+        eaglLayer.isOpaque = true
         eaglLayer.drawableProperties = [kEAGLDrawablePropertyRetainedBacking : false,
             kEAGLDrawablePropertyColorFormat : kEAGLColorFormatRGBA8]
         
         // Set the context into which the frames will be drawn.
-        _context = EAGLContext(API: EAGLRenderingAPI.OpenGLES2)
+        _context = EAGLContext(api: EAGLRenderingAPI.openGLES2)
         
-        if _context == nil || !EAGLContext.setCurrentContext(_context) || !self.loadShaders() {
+        if _context == nil || !EAGLContext.setCurrent(_context) || !self.loadShaders() {
             return nil
         }
         
@@ -107,7 +107,7 @@ class APLEAGLView: UIView {
     //MARK: - OpenGL setup
     
     func setupGL() {
-        EAGLContext.setCurrentContext(_context)
+        EAGLContext.setCurrent(_context)
         self.setupBuffers()
         self.loadShaders()
         
@@ -133,14 +133,14 @@ class APLEAGLView: UIView {
     
     //MARK: - Utilities
     
-    private func setupBuffers() {
+    fileprivate func setupBuffers() {
         glDisable(GL_DEPTH_TEST.ui)
         
         glEnableVertexAttribArray(ATTRIB_VERTEX.ui)
-        glVertexAttribPointer(ATTRIB_VERTEX.ui, 2, GL_FLOAT.ui, false, 2 * sizeof(GLfloat).i, nil)
+        glVertexAttribPointer(ATTRIB_VERTEX.ui, 2, GL_FLOAT.ui, false, 2 * MemoryLayout<GLfloat>.size.i, nil)
         
         glEnableVertexAttribArray(ATTRIB_TEXCOORD.ui)
-        glVertexAttribPointer(ATTRIB_TEXCOORD.ui, 2, GL_FLOAT.ui, false, 2 * sizeof(GLfloat).i, nil)
+        glVertexAttribPointer(ATTRIB_TEXCOORD.ui, 2, GL_FLOAT.ui, false, 2 * MemoryLayout<GLfloat>.size.i, nil)
         
         glGenFramebuffers(1, &_frameBufferHandle)
         glBindFramebuffer(GL_FRAMEBUFFER.ui, _frameBufferHandle)
@@ -148,7 +148,7 @@ class APLEAGLView: UIView {
         glGenRenderbuffers(1, &_colorBufferHandle)
         glBindRenderbuffer(GL_RENDERBUFFER.ui, _colorBufferHandle)
         
-        _context?.renderbufferStorage(GL_RENDERBUFFER.l, fromDrawable: self.layer as! CAEAGLLayer)
+        _context?.renderbufferStorage(GL_RENDERBUFFER.l, from: self.layer as! CAEAGLLayer)
         glGetRenderbufferParameteriv(GL_RENDERBUFFER.ui, GL_RENDERBUFFER_WIDTH.ui, &_backingWidth)
         glGetRenderbufferParameteriv(GL_RENDERBUFFER.ui, GL_RENDERBUFFER_HEIGHT.ui, &_backingHeight)
         
@@ -158,7 +158,7 @@ class APLEAGLView: UIView {
         }
     }
     
-    private func cleanUpTextures() {
+    fileprivate func cleanUpTextures() {
         _lumaTexture = nil
         
         _chromaTexture = nil
@@ -176,7 +176,7 @@ class APLEAGLView: UIView {
     
     //MARK: - OpenGLES drawing
     
-    func displayPixelBuffer(pixelBuffer: CVPixelBufferRef?) {
+    func displayPixelBuffer(_ pixelBuffer: CVPixelBuffer?) {
         var err: CVReturn = noErr
         if let buffer = pixelBuffer {
             let frameWidth = CVPixelBufferGetWidth(buffer)
@@ -278,11 +278,11 @@ class APLEAGLView: UIView {
         glUniformMatrix3fv(uniforms[UNIFORM_COLOR_CONVERSION_MATRIX], 1, false, _preferredConversion)
         
         // Set up the quad vertices with respect to the orientation and aspect ratio of the video.
-        let vertexSamplingRect = AVMakeRectWithAspectRatioInsideRect(self.presentationRect, self.layer.bounds)
+        let vertexSamplingRect = AVMakeRect(aspectRatio: self.presentationRect, insideRect: self.layer.bounds)
         
         // Compute normalized quad coordinates to draw the frame into.
-        var normalizedSamplingSize = CGSizeMake(0.0, 0.0)
-        let cropScaleAmount = CGSizeMake(vertexSamplingRect.size.width/self.layer.bounds.size.width, vertexSamplingRect.size.height/self.layer.bounds.size.height)
+        var normalizedSamplingSize = CGSize(width: 0.0, height: 0.0)
+        let cropScaleAmount = CGSize(width: vertexSamplingRect.size.width/self.layer.bounds.size.width, height: vertexSamplingRect.size.height/self.layer.bounds.size.height)
         
         // Normalize the quad vertices.
         if cropScaleAmount.width > cropScaleAmount.height {
@@ -311,12 +311,12 @@ class APLEAGLView: UIView {
         /*
         The texture vertices are set up such that we flip the texture vertically. This is so that our top left origin buffers match OpenGL's bottom left texture coordinate system.
         */
-        let textureSamplingRect = CGRectMake(0, 0, 1, 1)
+        let textureSamplingRect = CGRect(x: 0, y: 0, width: 1, height: 1)
         let quadTextureData: [GLfloat] = [
-            CGRectGetMinX(textureSamplingRect).f, CGRectGetMaxY(textureSamplingRect).f,
-            CGRectGetMaxX(textureSamplingRect).f, CGRectGetMaxY(textureSamplingRect).f,
-            CGRectGetMinX(textureSamplingRect).f, CGRectGetMinY(textureSamplingRect).f,
-            CGRectGetMaxX(textureSamplingRect).f, CGRectGetMinY(textureSamplingRect).f
+            textureSamplingRect.minX.f, textureSamplingRect.maxY.f,
+            textureSamplingRect.maxX.f, textureSamplingRect.maxY.f,
+            textureSamplingRect.minX.f, textureSamplingRect.minY.f,
+            textureSamplingRect.maxX.f, textureSamplingRect.minY.f
         ]
         
         glVertexAttribPointer(ATTRIB_TEXCOORD.ui, 2, GL_FLOAT.ui, 0, 0, quadTextureData)
@@ -330,7 +330,7 @@ class APLEAGLView: UIView {
     
     //MARK: -  OpenGL ES 2 shader compilation
     
-    private func loadShaders() -> Bool {
+    fileprivate func loadShaders() -> Bool {
         var vertShader: GLuint = 0
         var fragShader: GLuint = 0
         
@@ -338,15 +338,15 @@ class APLEAGLView: UIView {
         self.program = glCreateProgram()
         
         // Create and compile the vertex shader.
-        let vertShaderURL = NSBundle.mainBundle().URLForResource("Shader", withExtension: "vsh")!
-        guard self.compileShader(&vertShader, type: GL_VERTEX_SHADER.ui, URL: vertShaderURL) else {
+        let vertShaderURL = Bundle.main.url(forResource: "Shader", withExtension: "vsh")!
+        guard self.compileShader(shader: &vertShader, type: GL_VERTEX_SHADER.ui, URL: vertShaderURL) else {
             NSLog("Failed to compile vertex shader")
             return false
         }
         
         // Create and compile fragment shader.
-        let fragShaderURL = NSBundle.mainBundle().URLForResource("Shader", withExtension: "fsh")!
-        guard self.compileShader(&fragShader, type: GL_FRAGMENT_SHADER.ui, URL: fragShaderURL) else {
+        let fragShaderURL = Bundle.main.url(forResource: "Shader", withExtension: "fsh")!
+        guard self.compileShader(shader: &fragShader, type: GL_FRAGMENT_SHADER.ui, URL: fragShaderURL) else {
             NSLog("Failed to compile fragment shader")
             return false
         }
@@ -402,24 +402,24 @@ class APLEAGLView: UIView {
         return true
     }
     
-    func compileShader(shader: UnsafeMutablePointer<GLuint>, type: GLenum, URL: NSURL) -> Bool {
+    func compileShader( shader: UnsafeMutablePointer<GLuint>, type: GLenum, URL: Foundation.URL) -> Bool {
         let sourceString: String
         do {
-            sourceString = try String(contentsOfURL: URL, encoding: NSUTF8StringEncoding)
+            sourceString = try String(contentsOf: URL, encoding: String.Encoding.utf8)
         } catch let error as NSError {
             NSLog("Failed to load vertex shader: %@", error.localizedDescription)
             return false
         }
         
         var status: GLint = 0
-        sourceString.withCString {(_source: UnsafePointer<GLchar>)->Void in
+        sourceString.withCString {( _source: UnsafePointer<GLchar>)->Void in
             
-            shader.memory = glCreateShader(type)
-            var source = _source
-            glShaderSource(shader.memory, 1, &source, nil)
-            glCompileShader(shader.memory)
+            shader.pointee = glCreateShader(type)
+          var source:UnsafePointer<GLchar>? = _source
+            glShaderSource(shader.pointee, 1, &source, nil)
+            glCompileShader(shader.pointee)
         }
-        
+      
         #if DEBUG
             var logLength: GLint = 0
             glGetShaderiv(shader.memory, GL_INFO_LOG_LENGTH.ui, &logLength)
@@ -431,16 +431,16 @@ class APLEAGLView: UIView {
             }
         #endif
         
-        glGetShaderiv(shader.memory, GL_COMPILE_STATUS.ui, &status)
+        glGetShaderiv(shader.pointee, GL_COMPILE_STATUS.ui, &status)
         if status == 0 {
-            glDeleteShader(shader.memory)
+            glDeleteShader(shader.pointee)
             return false
         }
         
         return true
     }
     
-    private func linkProgram(prog: GLuint) -> Bool {
+    fileprivate func linkProgram(_ prog: GLuint) -> Bool {
         var status: GLint = 0
         glLinkProgram(prog)
         
@@ -463,17 +463,17 @@ class APLEAGLView: UIView {
         return true
     }
     
-    private func validateProgram(prog: GLuint) -> Bool {
+    fileprivate func validateProgram(_ prog: GLuint) -> Bool {
         var logLength: GLint = 0
         var status: GLint = 0
         
         glValidateProgram(prog)
         glGetProgramiv(prog, GL_INFO_LOG_LENGTH.ui, &logLength)
         if logLength > 0 {
-            let log = UnsafeMutablePointer<GLchar>.alloc(logLength.l)
+            let log = UnsafeMutablePointer<GLchar>.allocate(capacity: logLength.l)
             glGetProgramInfoLog(prog, logLength, &logLength, log)
-            NSLog("Program validate log:\n\(String.fromCString(log))")
-            log.dealloc(logLength.l)
+            NSLog("Program validate log:\n\(String(cString: log))")
+            log.deallocate(capacity: logLength.l)
         }
         
         glGetProgramiv(prog, GL_VALIDATE_STATUS.ui, &status)
