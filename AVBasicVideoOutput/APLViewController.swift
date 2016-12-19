@@ -26,8 +26,8 @@ private var AVPlayerItemStatusContext: Int = Int()
 @objc(APLImagePickerController)
 class APLImagePickerController: UIImagePickerController {
     
-    override func supportedInterfaceOrientations() -> UIInterfaceOrientationMask {
-        return .Landscape
+    override var supportedInterfaceOrientations : UIInterfaceOrientationMask {
+        return .landscape
     }
     
 }
@@ -35,7 +35,7 @@ class APLImagePickerController: UIImagePickerController {
 @objc(APLViewController)
 class APLViewController: UIViewController, AVPlayerItemOutputPullDelegate, UIImagePickerControllerDelegate, UINavigationControllerDelegate, UIPopoverControllerDelegate, UIGestureRecognizerDelegate {
     private dynamic var player: AVPlayer!
-    private var _myVideoOutputQueue: dispatch_queue_t!
+    private var _myVideoOutputQueue: DispatchQueue!
     private var _notificationToken: AnyObject?
     private var _timeObserver: AnyObject?
     
@@ -64,29 +64,29 @@ class APLViewController: UIViewController, AVPlayerItemOutputPullDelegate, UIIma
         
         // Setup CADisplayLink which will callback displayPixelBuffer: at every vsync.
         self.displayLink = CADisplayLink(target: self, selector: #selector(APLViewController.displayLinkCallback(_:)))
-        self.displayLink.addToRunLoop(NSRunLoop.currentRunLoop(), forMode: NSDefaultRunLoopMode)
-        self.displayLink.paused = true
+        self.displayLink.add(to: RunLoop.current, forMode: RunLoopMode.defaultRunLoopMode)
+        self.displayLink.isPaused = true
         
         // Setup AVPlayerItemVideoOutput with the required pixelbuffer attributes.
-        let pixBuffAttributes: [String : AnyObject] = [kCVPixelBufferPixelFormatTypeKey as String :  Int(kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange)]
+        let pixBuffAttributes: [String : AnyObject] = [kCVPixelBufferPixelFormatTypeKey as String :  Int(kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange) as AnyObject]
         self.videoOutput = AVPlayerItemVideoOutput(pixelBufferAttributes: pixBuffAttributes)
-        _myVideoOutputQueue = dispatch_queue_create("myVideoOutputQueue", DISPATCH_QUEUE_SERIAL)
+        _myVideoOutputQueue = DispatchQueue(label: "myVideoOutputQueue", attributes: [])
         self.videoOutput.setDelegate(self, queue: _myVideoOutputQueue)
     }
     
-    override func viewWillAppear(animated: Bool) {
-        self.addObserver(self, forKeyPath: "player.currentItem.status", options: .New, context: &AVPlayerItemStatusContext)
+    override func viewWillAppear(_ animated: Bool) {
+        self.addObserver(self, forKeyPath: "player.currentItem.status", options: .new, context: &AVPlayerItemStatusContext)
         self.addTimeObserverToPlayer()
         
         super.viewWillAppear(animated)
     }
     
-    override func viewWillDisappear(animated: Bool) {
+    override func viewWillDisappear(_ animated: Bool) {
         self.removeObserver(self, forKeyPath: "player.currentItem.status", context: &AVPlayerItemStatusContext)
         self.removeTimeObserverFromPlayer()
         
         if let token = _notificationToken {
-            NSNotificationCenter.defaultCenter().removeObserver(token, name: AVPlayerItemDidPlayToEndTimeNotification, object: player.currentItem)
+            NotificationCenter.default.removeObserver(token, name: Notification.Name.AVPlayerItemDidPlayToEndTime, object: player.currentItem)
             _notificationToken = nil
         }
         
@@ -95,7 +95,7 @@ class APLViewController: UIViewController, AVPlayerItemOutputPullDelegate, UIIma
     
     //MARK: - Utilities
     
-    @IBAction func updateLevels(sender: UIControl) {
+    @IBAction func updateLevels(_ sender: UIControl) {
         let tag = sender.tag
         
         switch tag {
@@ -109,40 +109,40 @@ class APLViewController: UIViewController, AVPlayerItemOutputPullDelegate, UIIma
         }
     }
     
-    @IBAction func loadMovieFromCameraRoll(sender: UIBarButtonItem) {
+    @IBAction func loadMovieFromCameraRoll(_ sender: UIBarButtonItem) {
         player.pause()
-        self.displayLink.paused = true
+        self.displayLink.isPaused = true
         
-        if self.popover?.popoverVisible ?? false {
-            self.popover?.dismissPopoverAnimated(true)
+        if self.popover?.isPopoverVisible ?? false {
+            self.popover?.dismiss(animated: true)
         }
         // Initialize UIImagePickerController to select a movie from the camera roll
         let videoPicker = APLImagePickerController()
         videoPicker.delegate = self
-        videoPicker.modalPresentationStyle = .CurrentContext
-        videoPicker.sourceType = .SavedPhotosAlbum
+        videoPicker.modalPresentationStyle = .currentContext
+        videoPicker.sourceType = .savedPhotosAlbum
         videoPicker.mediaTypes = [kUTTypeMovie as String]
         
-        if UIDevice.currentDevice().userInterfaceIdiom == .Pad {
+        if UIDevice.current.userInterfaceIdiom == .pad {
             self.popover = UIPopoverController(contentViewController: videoPicker)
             self.popover!.delegate = self
-            self.popover!.presentPopoverFromBarButtonItem(sender, permittedArrowDirections: .Down, animated: true)
+            self.popover!.present(from: sender, permittedArrowDirections: .down, animated: true)
         } else {
-            self.presentViewController(videoPicker, animated: true, completion: nil)
+            self.present(videoPicker, animated: true, completion: nil)
         }
     }
     
-    @IBAction func handleTapGesture(tapGestureRecognizer: UITapGestureRecognizer) {
-        self.toolbar.hidden = !self.toolbar.hidden
+    @IBAction func handleTapGesture(_ tapGestureRecognizer: UITapGestureRecognizer) {
+        self.toolbar.isHidden = !self.toolbar.isHidden
     }
     
-    override func supportedInterfaceOrientations() -> UIInterfaceOrientationMask {
-        return .Landscape
+    override var supportedInterfaceOrientations : UIInterfaceOrientationMask {
+        return .landscape
     }
     
     //MARK: - Playback setup
     
-    private func setupPlaybackForURL(URL: NSURL) {
+    private func setupPlaybackForURL(_ URL: Foundation.URL) {
         /*
         Sets up player item and adds video output to it.
         The tracks property of an asset is loaded via asynchronous key value loading, to access the preferred transform of a video track used to orientate the video while rendering.
@@ -150,21 +150,21 @@ class APLViewController: UIViewController, AVPlayerItemOutputPullDelegate, UIIma
         */
         
         // Remove video output from old item, if any.
-        player.currentItem?.removeOutput(self.videoOutput)
+        player.currentItem?.remove(self.videoOutput)
         
-        let item = AVPlayerItem(URL: URL)
+        let item = AVPlayerItem(url: URL)
         let asset = item.asset
         
-        asset.loadValuesAsynchronouslyForKeys(["tracks"]) {
+        asset.loadValuesAsynchronously(forKeys: ["tracks"]) {
             
-            if asset.statusOfValueForKey("tracks", error: nil) == .Loaded {
-                let tracks = asset.tracksWithMediaType(AVMediaTypeVideo)
+            if asset.statusOfValue(forKey: "tracks", error: nil) == .loaded {
+                let tracks = asset.tracks(withMediaType: AVMediaTypeVideo)
                 if !tracks.isEmpty {
                     // Choose the first video track.
                     let videoTrack = tracks[0]
-                    videoTrack.loadValuesAsynchronouslyForKeys(["preferredTransform"]) {
+                    videoTrack.loadValuesAsynchronously(forKeys: ["preferredTransform"]) {
                         
-                        if videoTrack.statusOfValueForKey("preferredTransform", error: nil) == .Loaded {
+                        if videoTrack.statusOfValue(forKey: "preferredTransform", error: nil) == .loaded {
                             let preferredTransform = videoTrack.preferredTransform
                             
                             /*
@@ -174,10 +174,10 @@ class APLViewController: UIViewController, AVPlayerItemOutputPullDelegate, UIIma
                             
                             self.addDidPlayToEndTimeNotificationForPlayerItem(item)
                             
-                            dispatch_async(dispatch_get_main_queue()) {
-                                item.addOutput(self.videoOutput)
-                                self.player.replaceCurrentItemWithPlayerItem(item)
-                                self.videoOutput.requestNotificationOfMediaDataChangeWithAdvanceInterval(ONE_FRAME_DURATION)
+                            DispatchQueue.main.async {
+                                item.add(self.videoOutput)
+                                self.player.replaceCurrentItem(with: item)
+                                self.videoOutput.requestNotificationOfMediaDataChange(withAdvanceInterval: ONE_FRAME_DURATION)
                                 self.player.play()
                             }
                             
@@ -191,54 +191,54 @@ class APLViewController: UIViewController, AVPlayerItemOutputPullDelegate, UIIma
         
     }
     
-    private func stopLoadingAnimationAndHandleError(error: NSError?) {
+    private func stopLoadingAnimationAndHandleError(_ error: NSError?) {
         guard let error = error else {return}
         let cancelButtonTitle =  NSLocalizedString("OK", comment: "Cancel button title for animation load error")
         if #available(iOS 8.0, *) {
-            let alertController = UIAlertController(title: error.localizedDescription, message: error.localizedFailureReason, preferredStyle: .Alert)
-            let action = UIAlertAction(title: cancelButtonTitle, style: .Cancel, handler: nil)
+            let alertController = UIAlertController(title: error.localizedDescription, message: error.localizedFailureReason, preferredStyle: .alert)
+            let action = UIAlertAction(title: cancelButtonTitle, style: .cancel, handler: nil)
             alertController.addAction(action)
-            self.presentViewController(alertController, animated: true, completion: nil)
+            self.present(alertController, animated: true, completion: nil)
         } else {
             let alertView = UIAlertView(title: error.localizedDescription, message: error.localizedFailureReason, delegate: nil, cancelButtonTitle: cancelButtonTitle)
             alertView.show()
         }
     }
     
-    override func observeValueForKeyPath(keyPath: String?, ofObject object: AnyObject?, change: [String : AnyObject]?, context: UnsafeMutablePointer<Void>) {
+    override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey : Any]?, context: UnsafeMutableRawPointer?) {
         if context == &AVPlayerItemStatusContext {
-            if let status = AVPlayerStatus(rawValue: change![NSKeyValueChangeNewKey] as! Int) {
+            if let status = AVPlayerStatus(rawValue: change![.newKey] as! Int) {
                 switch status {
-                case .Unknown:
+                case .unknown:
                     break
-                case .ReadyToPlay:
+                case .readyToPlay:
                     self.playerView.presentationRect = player.currentItem!.presentationSize
-                case .Failed:
-                    self.stopLoadingAnimationAndHandleError(player.currentItem!.error)
+                case .failed:
+                    self.stopLoadingAnimationAndHandleError(player.currentItem!.error as NSError?)
                 }
             } else {
-                fatalError("Invalid value for NSKeyValueChangeNewKey: \(change![NSKeyValueChangeNewKey])")
+                fatalError("Invalid value for NSKeyValueChangeNewKey: \(change![.newKey])")
             }
         } else {
-            super.observeValueForKeyPath(keyPath, ofObject: object, change: change, context: context)
+            super.observeValue(forKeyPath: keyPath, of: object, change: change, context: context)
         }
     }
     
-    private func addDidPlayToEndTimeNotificationForPlayerItem(item: AVPlayerItem) {
+    private func addDidPlayToEndTimeNotificationForPlayerItem(_ item: AVPlayerItem) {
         
         /*
         Setting actionAtItemEnd to None prevents the movie from getting paused at item end. A very simplistic, and not gapless, looped playback.
         */
-        player.actionAtItemEnd = .None
-        _notificationToken = NSNotificationCenter.defaultCenter().addObserverForName(AVPlayerItemDidPlayToEndTimeNotification, object: item, queue: NSOperationQueue.mainQueue()) {note in
+        player.actionAtItemEnd = .none
+        _notificationToken = NotificationCenter.default.addObserver(forName: Notification.Name.AVPlayerItemDidPlayToEndTime, object: item, queue: OperationQueue.main) {note in
             // Simple item playback rewind.
-            self.player.currentItem?.seekToTime(kCMTimeZero)
+            self.player.currentItem?.seek(to: kCMTimeZero)
         }
     }
     
     private func syncTimeLabel() {
         var seconds = CMTimeGetSeconds(player.currentTime())
-        if !isfinite(seconds) {
+        if !seconds.isFinite {
             seconds = 0
         }
         
@@ -247,7 +247,7 @@ class APLViewController: UIViewController, AVPlayerItemOutputPullDelegate, UIIma
         secondsInt -= minutes*60
         
         self.currentTime.textColor = UIColor(white: 1.0, alpha: 1.0)
-        self.currentTime.textAlignment = .Center
+        self.currentTime.textAlignment = .center
         
         self.currentTime.text = String(format: "%.2i:%.2i", minutes, secondsInt)
     }
@@ -262,9 +262,9 @@ class APLViewController: UIViewController, AVPlayerItemOutputPullDelegate, UIIma
         /*
         Use __weak reference to self to ensure that a strong reference cycle is not formed between the view controller, player and notification block.
         */
-        _timeObserver = player.addPeriodicTimeObserverForInterval(CMTimeMakeWithSeconds(1, 10), queue: dispatch_get_main_queue()) {[weak self] time in
+        _timeObserver = player.addPeriodicTimeObserver(forInterval: CMTimeMakeWithSeconds(1, 10), queue: DispatchQueue.main) {[weak self] time in
             self?.syncTimeLabel()
-        }
+        } as AnyObject?
     }
     
     private func removeTimeObserverFromPlayer() {
@@ -276,7 +276,7 @@ class APLViewController: UIViewController, AVPlayerItemOutputPullDelegate, UIIma
     
     //MARK: - CADisplayLink Callback
     
-    func displayLinkCallback(sender: CADisplayLink) {
+    func displayLinkCallback(_ sender: CADisplayLink) {
         /*
         The callback gets called once every Vsync.
         Using the display link's timestamp and duration we can compute the next time the screen will be refreshed, and copy the pixel buffer for that time
@@ -287,10 +287,10 @@ class APLViewController: UIViewController, AVPlayerItemOutputPullDelegate, UIIma
         // Calculate the nextVsync time which is when the screen will be refreshed next.
         let nextVSync = (sender.timestamp + sender.duration)
         
-        outputItemTime = self.videoOutput.itemTimeForHostTime(nextVSync)
+        outputItemTime = self.videoOutput.itemTime(forHostTime: nextVSync)
         
-        if self.videoOutput.hasNewPixelBufferForItemTime(outputItemTime) {
-            let pixelBuffer = self.videoOutput.copyPixelBufferForItemTime(outputItemTime, itemTimeForDisplay: nil)
+        if self.videoOutput.hasNewPixelBuffer(forItemTime: outputItemTime) {
+            let pixelBuffer = self.videoOutput.copyPixelBuffer(forItemTime: outputItemTime, itemTimeForDisplay: nil)
             
             self.playerView.displayPixelBuffer(pixelBuffer)
             
@@ -299,50 +299,50 @@ class APLViewController: UIViewController, AVPlayerItemOutputPullDelegate, UIIma
     
     //MARK: - AVPlayerItemOutputPullDelegate
     
-    func outputMediaDataWillChange(sender: AVPlayerItemOutput) {
+    func outputMediaDataWillChange(_ sender: AVPlayerItemOutput) {
         // Restart display link.
-        self.displayLink.paused = false
+        self.displayLink.isPaused = false
     }
     
     //MARK: - Image Picker Controller Delegate
     
-    func imagePickerController(picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [String : AnyObject]) {
-        if UIDevice.currentDevice().userInterfaceIdiom == .Pad {
-            self.popover?.dismissPopoverAnimated(true)
+    func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [String : Any]) {
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            self.popover?.dismiss(animated: true)
         } else {
-            self.dismissViewControllerAnimated(true, completion: nil)
+            self.dismiss(animated: true, completion: nil)
         }
         
         if player.currentItem == nil {
-            self.lumaLevelSlider.enabled = true
-            self.chromaLevelSlider.enabled = true
+            self.lumaLevelSlider.isEnabled = true
+            self.chromaLevelSlider.isEnabled = true
             self.playerView.setupGL()
         }
         
         // Time label shows the current time of the item.
-        if self.timeView.hidden {
-            self.timeView.layer.backgroundColor = UIColor(white: 0.0, alpha: 0.3).CGColor
+        if self.timeView.isHidden {
+            self.timeView.layer.backgroundColor = UIColor(white: 0.0, alpha: 0.3).cgColor
             self.timeView.layer.cornerRadius = 5.0
-            self.timeView.layer.borderColor = UIColor(white: 1.0, alpha: 0.15).CGColor
+            self.timeView.layer.borderColor = UIColor(white: 1.0, alpha: 0.15).cgColor
             self.timeView.layer.borderWidth = 1.0
-            self.timeView.hidden = false
-            self.currentTime.hidden = false
+            self.timeView.isHidden = false
+            self.currentTime.isHidden = false
         }
         
-        self.setupPlaybackForURL(info[UIImagePickerControllerReferenceURL] as! NSURL)
+        self.setupPlaybackForURL(info[UIImagePickerControllerReferenceURL] as! URL)
         
         picker.delegate = nil
     }
     
-    func imagePickerControllerDidCancel(picker: UIImagePickerController) {
-        self.dismissViewControllerAnimated(true, completion: nil)
+    func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+        self.dismiss(animated: true, completion: nil)
         
         // Make sure our playback is resumed from any interruption.
         if let item = player.currentItem {
             self.addDidPlayToEndTimeNotificationForPlayerItem(item)
         }
         
-        self.videoOutput.requestNotificationOfMediaDataChangeWithAdvanceInterval(ONE_FRAME_DURATION)
+        self.videoOutput.requestNotificationOfMediaDataChange(withAdvanceInterval: ONE_FRAME_DURATION)
         player.play()
         
         picker.delegate = nil
@@ -350,12 +350,12 @@ class APLViewController: UIViewController, AVPlayerItemOutputPullDelegate, UIIma
     
     //MARK: - Popover Controller Delegate
     
-    func popoverControllerDidDismissPopover(popoverController: UIPopoverController) {
+    func popoverControllerDidDismissPopover(_ popoverController: UIPopoverController) {
         // Make sure our playback is resumed from any interruption.
         if let item = player.currentItem {
             self.addDidPlayToEndTimeNotificationForPlayerItem(item)
         }
-        self.videoOutput.requestNotificationOfMediaDataChangeWithAdvanceInterval(ONE_FRAME_DURATION)
+        self.videoOutput.requestNotificationOfMediaDataChange(withAdvanceInterval: ONE_FRAME_DURATION)
         player.play()
         
         self.popover?.delegate = nil
@@ -363,7 +363,7 @@ class APLViewController: UIViewController, AVPlayerItemOutputPullDelegate, UIIma
     
     //MARK: - Gesture recognizer delegate
     
-    func gestureRecognizer(gestureRecognizer: UIGestureRecognizer, shouldReceiveTouch touch: UITouch) -> Bool {
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
         // Ignore touch on toolbar.
         return touch.view === self.view
     }

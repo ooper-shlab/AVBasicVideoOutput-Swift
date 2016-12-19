@@ -27,7 +27,7 @@ let UNIFORM_CHROMA_THRESHOLD = 3
 let UNIFORM_ROTATION_ANGLE = 4
 let UNIFORM_COLOR_CONVERSION_MATRIX = 5
 let NUM_UNIFORMS = 6
-var uniforms: [GLint] = Array(count: NUM_UNIFORMS, repeatedValue: 0)
+var uniforms: [GLint] = Array(repeating: 0, count: NUM_UNIFORMS)
 
 // Attribute index.
 let ATTRIB_VERTEX = 0
@@ -37,14 +37,14 @@ let NUM_ATTRIBUTES = 2
 // Color Conversion Constants (YUV to RGB) including adjustment from 16-235/16-240 (video range)
 
 // BT.601, which is the standard for SDTV.
-private var kColorConversion601: [GLfloat] = [
+private let kColorConversion601: [GLfloat] = [
     1.164,  1.164, 1.164,
     0.0, -0.392, 2.017,
     1.596, -0.813,   0.0,
 ]
 
 // BT.709, which is the standard for HDTV.
-private var kColorConversion709: [GLfloat] = [
+private let kColorConversion709: [GLfloat] = [
     1.164,  1.164, 1.164,
     0.0, -0.213, 2.112,
     1.793, -0.533,   0.0,
@@ -63,51 +63,47 @@ class APLEAGLView: UIView {
     private var _backingHeight: GLint = 0
     
     private var _context: EAGLContext?
-    private var _lumaTexture: CVOpenGLESTextureRef?
-    private var _chromaTexture: CVOpenGLESTextureRef?
-    private var _videoTextureCache: CVOpenGLESTextureCacheRef?
+    private var _lumaTexture: CVOpenGLESTexture?
+    private var _chromaTexture: CVOpenGLESTexture?
+    private var _videoTextureCache: CVOpenGLESTextureCache?
     
     private var _frameBufferHandle: GLuint = 0
     private var _colorBufferHandle: GLuint = 0
     
-    private var _preferredConversion: UnsafePointer<GLfloat> = nil
+    // Set the default conversion to BT.709, which is the standard for HDTV.
+    private var _preferredConversion: [GLfloat] = kColorConversion709
     
     private var program: GLuint = 0
     
-    override class func layerClass() -> AnyClass {
+    override class var layerClass : AnyClass {
         return CAEAGLLayer.self
     }
     
     required init?(coder aDecoder: NSCoder) {
         super.init(coder: aDecoder)
         // Use 2x scale factor on Retina displays.
-        self.contentScaleFactor = UIScreen.mainScreen().scale
+        self.contentScaleFactor = UIScreen.main.scale
         
         // Get and configure the layer.
         let eaglLayer = self.layer as! CAEAGLLayer
         
-        eaglLayer.opaque = true
+        eaglLayer.isOpaque = true
         eaglLayer.drawableProperties = [kEAGLDrawablePropertyRetainedBacking : false,
-            kEAGLDrawablePropertyColorFormat : kEAGLColorFormatRGBA8]
+                                        kEAGLDrawablePropertyColorFormat : kEAGLColorFormatRGBA8]
         
         // Set the context into which the frames will be drawn.
-        _context = EAGLContext(API: EAGLRenderingAPI.OpenGLES2)
+        _context = EAGLContext(api: EAGLRenderingAPI.openGLES2)
         
-        if _context == nil || !EAGLContext.setCurrentContext(_context) || !self.loadShaders() {
+        if _context == nil || !EAGLContext.setCurrent(_context) || !self.loadShaders() {
             return nil
         }
         
-        // Set the default conversion to BT.709, which is the standard for HDTV.
-        kColorConversion709.withUnsafeBufferPointer {
-            //### Expecting this `baseAddress` is stable for global variables.
-            _preferredConversion = $0.baseAddress
-        }
     }
     
     //MARK: - OpenGL setup
     
     func setupGL() {
-        EAGLContext.setCurrentContext(_context)
+        EAGLContext.setCurrent(_context)
         self.setupBuffers()
         self.loadShaders()
         
@@ -137,10 +133,10 @@ class APLEAGLView: UIView {
         glDisable(GL_DEPTH_TEST.ui)
         
         glEnableVertexAttribArray(ATTRIB_VERTEX.ui)
-        glVertexAttribPointer(ATTRIB_VERTEX.ui, 2, GL_FLOAT.ui, false, 2 * sizeof(GLfloat).i, nil)
+        glVertexAttribPointer(ATTRIB_VERTEX.ui, 2, GL_FLOAT.ui, false, 2 * MemoryLayout<GLfloat>.size.i, nil)
         
         glEnableVertexAttribArray(ATTRIB_TEXCOORD.ui)
-        glVertexAttribPointer(ATTRIB_TEXCOORD.ui, 2, GL_FLOAT.ui, false, 2 * sizeof(GLfloat).i, nil)
+        glVertexAttribPointer(ATTRIB_TEXCOORD.ui, 2, GL_FLOAT.ui, false, 2 * MemoryLayout<GLfloat>.size.i, nil)
         
         glGenFramebuffers(1, &_frameBufferHandle)
         glBindFramebuffer(GL_FRAMEBUFFER.ui, _frameBufferHandle)
@@ -148,7 +144,7 @@ class APLEAGLView: UIView {
         glGenRenderbuffers(1, &_colorBufferHandle)
         glBindRenderbuffer(GL_RENDERBUFFER.ui, _colorBufferHandle)
         
-        _context?.renderbufferStorage(GL_RENDERBUFFER.l, fromDrawable: self.layer as! CAEAGLLayer)
+        _context?.renderbufferStorage(GL_RENDERBUFFER.l, from: self.layer as! CAEAGLLayer)
         glGetRenderbufferParameteriv(GL_RENDERBUFFER.ui, GL_RENDERBUFFER_WIDTH.ui, &_backingWidth)
         glGetRenderbufferParameteriv(GL_RENDERBUFFER.ui, GL_RENDERBUFFER_HEIGHT.ui, &_backingHeight)
         
@@ -164,8 +160,8 @@ class APLEAGLView: UIView {
         _chromaTexture = nil
         
         // Periodic texture cache flush every frame
-        if _videoTextureCache != nil {
-            CVOpenGLESTextureCacheFlush(_videoTextureCache!, 0)
+        if let videoTextureCache = _videoTextureCache {
+            CVOpenGLESTextureCacheFlush(videoTextureCache, 0)
         }
     }
     
@@ -176,13 +172,13 @@ class APLEAGLView: UIView {
     
     //MARK: - OpenGLES drawing
     
-    func displayPixelBuffer(pixelBuffer: CVPixelBufferRef?) {
+    func displayPixelBuffer(_ pixelBuffer: CVPixelBuffer?) {
         var err: CVReturn = noErr
         if let buffer = pixelBuffer {
             let frameWidth = CVPixelBufferGetWidth(buffer)
             let frameHeight = CVPixelBufferGetHeight(buffer)
             
-            if _videoTextureCache == nil {
+            guard let videoTextureCache = _videoTextureCache else {
                 NSLog("No video texture cache")
                 return
             }
@@ -191,42 +187,36 @@ class APLEAGLView: UIView {
             
             
             /*
-            Use the color attachment of the pixel buffer to determine the appropriate color conversion matrix.
-            */
+             Use the color attachment of the pixel buffer to determine the appropriate color conversion matrix.
+             */
             let colorAttachments = CVBufferGetAttachment(buffer, kCVImageBufferYCbCrMatrixKey, nil)?.takeUnretainedValue() as? NSString
             
             if colorAttachments == kCVImageBufferYCbCrMatrix_ITU_R_601_4 {
-                kColorConversion601.withUnsafeBufferPointer {
-                    //### Expecting this `baseAddress` is stable for global variables.
-                    _preferredConversion = $0.baseAddress
-                }
+                _preferredConversion = kColorConversion601
             } else {
-                kColorConversion709.withUnsafeBufferPointer {
-                    //### Expecting this `baseAddress` is stable for global variables.
-                    _preferredConversion = $0.baseAddress
-                }
+                _preferredConversion = kColorConversion709
             }
             
             /*
-            CVOpenGLESTextureCacheCreateTextureFromImage will create GLES texture optimally from CVPixelBufferRef.
-            */
+             CVOpenGLESTextureCacheCreateTextureFromImage will create GLES texture optimally from CVPixelBufferRef.
+             */
             
             /*
-            Create Y and UV textures from the pixel buffer. These textures will be drawn on the frame buffer Y-plane.
-            */
+             Create Y and UV textures from the pixel buffer. These textures will be drawn on the frame buffer Y-plane.
+             */
             glActiveTexture(GL_TEXTURE0.ui)
             err = CVOpenGLESTextureCacheCreateTextureFromImage(kCFAllocatorDefault,
-                _videoTextureCache!,
-                buffer,
-                nil,
-                GL_TEXTURE_2D.ui,
-                GL_RED_EXT,
-                frameWidth.i,
-                frameHeight.i,
-                GL_RED_EXT.ui,
-                GL_UNSIGNED_BYTE.ui,
-                0,
-                &_lumaTexture)
+                                                               videoTextureCache,
+                                                               buffer,
+                                                               nil,
+                                                               GL_TEXTURE_2D.ui,
+                                                               GL_RED_EXT,
+                                                               frameWidth.i,
+                                                               frameHeight.i,
+                                                               GL_RED_EXT.ui,
+                                                               GL_UNSIGNED_BYTE.ui,
+                                                               0,
+                                                               &_lumaTexture)
             if err != 0 {
                 NSLog("Error at CVOpenGLESTextureCacheCreateTextureFromImage \(err)")
             }
@@ -240,17 +230,17 @@ class APLEAGLView: UIView {
             // UV-plane.
             glActiveTexture(GL_TEXTURE1.ui)
             err = CVOpenGLESTextureCacheCreateTextureFromImage(kCFAllocatorDefault,
-                _videoTextureCache!,
-                buffer,
-                nil,
-                GL_TEXTURE_2D.ui,
-                GL_RG_EXT,
-                frameWidth.i / 2,
-                frameHeight.i / 2,
-                GL_RG_EXT.ui,
-                GL_UNSIGNED_BYTE.ui,
-                1,
-                &_chromaTexture)
+                                                               videoTextureCache,
+                                                               buffer,
+                                                               nil,
+                                                               GL_TEXTURE_2D.ui,
+                                                               GL_RG_EXT,
+                                                               frameWidth.i / 2,
+                                                               frameHeight.i / 2,
+                                                               GL_RG_EXT.ui,
+                                                               GL_UNSIGNED_BYTE.ui,
+                                                               1,
+                                                               &_chromaTexture)
             if err != 0 {
                 NSLog("Error at CVOpenGLESTextureCacheCreateTextureFromImage \(err)")
             }
@@ -278,11 +268,11 @@ class APLEAGLView: UIView {
         glUniformMatrix3fv(uniforms[UNIFORM_COLOR_CONVERSION_MATRIX], 1, false, _preferredConversion)
         
         // Set up the quad vertices with respect to the orientation and aspect ratio of the video.
-        let vertexSamplingRect = AVMakeRectWithAspectRatioInsideRect(self.presentationRect, self.layer.bounds)
+        let vertexSamplingRect = AVMakeRect(aspectRatio: self.presentationRect, insideRect: self.layer.bounds)
         
         // Compute normalized quad coordinates to draw the frame into.
-        var normalizedSamplingSize = CGSizeMake(0.0, 0.0)
-        let cropScaleAmount = CGSizeMake(vertexSamplingRect.size.width/self.layer.bounds.size.width, vertexSamplingRect.size.height/self.layer.bounds.size.height)
+        var normalizedSamplingSize = CGSize(width: 0.0, height: 0.0)
+        let cropScaleAmount = CGSize(width: vertexSamplingRect.size.width/self.layer.bounds.size.width, height: vertexSamplingRect.size.height/self.layer.bounds.size.height)
         
         // Normalize the quad vertices.
         if cropScaleAmount.width > cropScaleAmount.height {
@@ -294,29 +284,29 @@ class APLEAGLView: UIView {
         }
         
         /*
-        The quad vertex data defines the region of 2D plane onto which we draw our pixel buffers.
-        Vertex data formed using (-1,-1) and (1,1) as the bottom left and top right coordinates respectively, covers the entire screen.
-        */
+         The quad vertex data defines the region of 2D plane onto which we draw our pixel buffers.
+         Vertex data formed using (-1,-1) and (1,1) as the bottom left and top right coordinates respectively, covers the entire screen.
+         */
         let quadVertexData: [GLfloat] = [
             -1 * normalizedSamplingSize.width.f, -1 * normalizedSamplingSize.height.f,
             normalizedSamplingSize.width.f, -1 * normalizedSamplingSize.height.f,
             -1 * normalizedSamplingSize.width.f, normalizedSamplingSize.height.f,
             normalizedSamplingSize.width.f, normalizedSamplingSize.height.f,
-        ]
+            ]
         
         // Update attribute values.
         glVertexAttribPointer(ATTRIB_VERTEX.ui, 2, GL_FLOAT.ui, 0, 0, quadVertexData)
         glEnableVertexAttribArray(ATTRIB_VERTEX.ui)
         
         /*
-        The texture vertices are set up such that we flip the texture vertically. This is so that our top left origin buffers match OpenGL's bottom left texture coordinate system.
-        */
-        let textureSamplingRect = CGRectMake(0, 0, 1, 1)
+         The texture vertices are set up such that we flip the texture vertically. This is so that our top left origin buffers match OpenGL's bottom left texture coordinate system.
+         */
+        let textureSamplingRect = CGRect(x: 0, y: 0, width: 1, height: 1)
         let quadTextureData: [GLfloat] = [
-            CGRectGetMinX(textureSamplingRect).f, CGRectGetMaxY(textureSamplingRect).f,
-            CGRectGetMaxX(textureSamplingRect).f, CGRectGetMaxY(textureSamplingRect).f,
-            CGRectGetMinX(textureSamplingRect).f, CGRectGetMinY(textureSamplingRect).f,
-            CGRectGetMaxX(textureSamplingRect).f, CGRectGetMinY(textureSamplingRect).f
+            textureSamplingRect.minX.f, textureSamplingRect.maxY.f,
+            textureSamplingRect.maxX.f, textureSamplingRect.maxY.f,
+            textureSamplingRect.minX.f, textureSamplingRect.minY.f,
+            textureSamplingRect.maxX.f, textureSamplingRect.minY.f
         ]
         
         glVertexAttribPointer(ATTRIB_TEXCOORD.ui, 2, GL_FLOAT.ui, 0, 0, quadTextureData)
@@ -330,6 +320,7 @@ class APLEAGLView: UIView {
     
     //MARK: -  OpenGL ES 2 shader compilation
     
+    @discardableResult
     private func loadShaders() -> Bool {
         var vertShader: GLuint = 0
         var fragShader: GLuint = 0
@@ -338,14 +329,14 @@ class APLEAGLView: UIView {
         self.program = glCreateProgram()
         
         // Create and compile the vertex shader.
-        let vertShaderURL = NSBundle.mainBundle().URLForResource("Shader", withExtension: "vsh")!
+        let vertShaderURL = Bundle.main.url(forResource: "Shader", withExtension: "vsh")!
         guard self.compileShader(&vertShader, type: GL_VERTEX_SHADER.ui, URL: vertShaderURL) else {
             NSLog("Failed to compile vertex shader")
             return false
         }
         
         // Create and compile fragment shader.
-        let fragShaderURL = NSBundle.mainBundle().URLForResource("Shader", withExtension: "fsh")!
+        let fragShaderURL = Bundle.main.url(forResource: "Shader", withExtension: "fsh")!
         guard self.compileShader(&fragShader, type: GL_FRAGMENT_SHADER.ui, URL: fragShaderURL) else {
             NSLog("Failed to compile fragment shader")
             return false
@@ -402,45 +393,45 @@ class APLEAGLView: UIView {
         return true
     }
     
-    func compileShader(shader: UnsafeMutablePointer<GLuint>, type: GLenum, URL: NSURL) -> Bool {
+    func compileShader(_ shader: UnsafeMutablePointer<GLuint>, type: GLenum, URL: Foundation.URL) -> Bool {
         let sourceString: String
         do {
-            sourceString = try String(contentsOfURL: URL, encoding: NSUTF8StringEncoding)
+            sourceString = try String(contentsOf: URL, encoding: .utf8)
         } catch let error as NSError {
             NSLog("Failed to load vertex shader: %@", error.localizedDescription)
             return false
         }
         
         var status: GLint = 0
-        sourceString.withCString {(_source: UnsafePointer<GLchar>)->Void in
+        sourceString.withCString {(_source: UnsafePointer<GLchar>?)->Void in
             
-            shader.memory = glCreateShader(type)
+            shader.pointee = glCreateShader(type)
             var source = _source
-            glShaderSource(shader.memory, 1, &source, nil)
-            glCompileShader(shader.memory)
+            glShaderSource(shader.pointee, 1, &source, nil)
+            glCompileShader(shader.pointee)
         }
         
         #if DEBUG
             var logLength: GLint = 0
-            glGetShaderiv(shader.memory, GL_INFO_LOG_LENGTH.ui, &logLength)
+            glGetShaderiv(shader.pointee, GL_INFO_LOG_LENGTH.ui, &logLength)
             if logLength > 0 {
-                let log = UnsafeMutablePointer<GLchar>.alloc(Int(logLength))
-                glGetShaderInfoLog(shader.memory, logLength, &logLength, log)
+                let log = UnsafeMutablePointer<GLchar>.allocate(capacity: Int(logLength))
+                glGetShaderInfoLog(shader.pointee, logLength, &logLength, log)
                 NSLog("Shader compile log:\n%s", log)
-                log.dealloc(Int(logLength))
+                log.deallocate(capacity: Int(logLength))
             }
         #endif
         
-        glGetShaderiv(shader.memory, GL_COMPILE_STATUS.ui, &status)
+        glGetShaderiv(shader.pointee, GL_COMPILE_STATUS.ui, &status)
         if status == 0 {
-            glDeleteShader(shader.memory)
+            glDeleteShader(shader.pointee)
             return false
         }
         
         return true
     }
     
-    private func linkProgram(prog: GLuint) -> Bool {
+    private func linkProgram(_ prog: GLuint) -> Bool {
         var status: GLint = 0
         glLinkProgram(prog)
         
@@ -448,10 +439,10 @@ class APLEAGLView: UIView {
             var logLength: GLint = 0
             glGetProgramiv(prog, GL_INFO_LOG_LENGTH.ui, &logLength)
             if logLength > 0 {
-                let log = UnsafeMutablePointer<GLchar>.alloc(Int(logLength))
+                let log = UnsafeMutablePointer<GLchar>.allocate(capacity: Int(logLength))
                 glGetProgramInfoLog(prog, logLength, &logLength, log)
                 NSLog("Program link log:\n%s", log)
-                log.dealloc(Int(logLength))
+                log.deallocate(capacity: Int(logLength))
             }
         #endif
         
@@ -463,17 +454,17 @@ class APLEAGLView: UIView {
         return true
     }
     
-    private func validateProgram(prog: GLuint) -> Bool {
+    private func validateProgram(_ prog: GLuint) -> Bool {
         var logLength: GLint = 0
         var status: GLint = 0
         
         glValidateProgram(prog)
         glGetProgramiv(prog, GL_INFO_LOG_LENGTH.ui, &logLength)
         if logLength > 0 {
-            let log = UnsafeMutablePointer<GLchar>.alloc(logLength.l)
+            let log = UnsafeMutablePointer<GLchar>.allocate(capacity: logLength.l)
             glGetProgramInfoLog(prog, logLength, &logLength, log)
-            NSLog("Program validate log:\n\(String.fromCString(log))")
-            log.dealloc(logLength.l)
+            NSLog("Program validate log:\n\(String(cString: log))")
+            log.deallocate(capacity: logLength.l)
         }
         
         glGetProgramiv(prog, GL_VALIDATE_STATUS.ui, &status)
