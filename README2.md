@@ -3,7 +3,7 @@
 Translated by OOPer in cooperation with shlab.jp, on 2015/10/11.
 
 Based on
-<https://developer.apple.com/library/ios/samplecode/AVBasicVideoOutput/Introduction/Intro.html#//apple_ref/doc/uid/DTS40013109>
+<https://developer.apple.com/library/content/samplecode/AVBasicVideoOutput/Introduction/Intro.html#//apple_ref/doc/uid/DTS40013109>
 2015-10-01.
 
 As this is a line-by-line translation from the original sample code, "redistribute the Apple Software in its entirety and without modifications" would apply. See LICENSE.txt .
@@ -13,7 +13,7 @@ You should not contact to Apple or SHLab(jp) about any faults caused by my trans
 ===========================================================================
 BUILD REQUIREMENTS:
 
-Xcode 8.2, iOS SDK 10
+Xcode 8.3.3, iOS SDK 10
 
 ===========================================================================
 RUNTIME REQUIREMENTS:

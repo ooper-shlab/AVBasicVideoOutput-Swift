@@ -217,7 +217,7 @@ class APLViewController: UIViewController, AVPlayerItemOutputPullDelegate, UIIma
                     self.stopLoadingAnimationAndHandleError(player.currentItem!.error as NSError?)
                 }
             } else {
-                fatalError("Invalid value for NSKeyValueChangeNewKey: \(change![.newKey])")
+                fatalError("Invalid value for NSKeyValueChangeNewKey: \(change![.newKey] ?? "nil")")
             }
         } else {
             super.observeValue(forKeyPath: keyPath, of: object, change: change, context: context)
