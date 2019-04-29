@@ -418,7 +418,7 @@ class APLEAGLView: UIView {
                 let log = UnsafeMutablePointer<GLchar>.allocate(capacity: Int(logLength))
                 glGetShaderInfoLog(shader.pointee, logLength, &logLength, log)
                 NSLog("Shader compile log:\n%s", log)
-                log.deallocate(capacity: Int(logLength))
+                log.deallocate()
             }
         #endif
         
@@ -442,7 +442,7 @@ class APLEAGLView: UIView {
                 let log = UnsafeMutablePointer<GLchar>.allocate(capacity: Int(logLength))
                 glGetProgramInfoLog(prog, logLength, &logLength, log)
                 NSLog("Program link log:\n%s", log)
-                log.deallocate(capacity: Int(logLength))
+                log.deallocate()
             }
         #endif
         
@@ -464,7 +464,7 @@ class APLEAGLView: UIView {
             let log = UnsafeMutablePointer<GLchar>.allocate(capacity: logLength.l)
             glGetProgramInfoLog(prog, logLength, &logLength, log)
             NSLog("Program validate log:\n\(String(cString: log))")
-            log.deallocate(capacity: logLength.l)
+            log.deallocate()
         }
         
         glGetProgramiv(prog, GL_VALIDATE_STATUS.ui, &status)

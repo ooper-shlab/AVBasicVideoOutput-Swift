@@ -16,6 +16,7 @@
 import UIKit
 import AVFoundation
 import MobileCoreServices
+import Photos
 
 private let ONE_FRAME_DURATION = 0.03
 private let LUMA_SLIDER_TAG = 0
@@ -34,7 +35,7 @@ class APLImagePickerController: UIImagePickerController {
 
 @objc(APLViewController)
 class APLViewController: UIViewController, AVPlayerItemOutputPullDelegate, UIImagePickerControllerDelegate, UINavigationControllerDelegate, UIPopoverControllerDelegate, UIGestureRecognizerDelegate {
-    private dynamic var player: AVPlayer!
+    @objc private dynamic var player: AVPlayer!
     private var _myVideoOutputQueue: DispatchQueue!
     private var _notificationToken: AnyObject?
     private var _timeObserver: AnyObject?
@@ -64,7 +65,7 @@ class APLViewController: UIViewController, AVPlayerItemOutputPullDelegate, UIIma
         
         // Setup CADisplayLink which will callback displayPixelBuffer: at every vsync.
         self.displayLink = CADisplayLink(target: self, selector: #selector(APLViewController.displayLinkCallback(_:)))
-        self.displayLink.add(to: RunLoop.current, forMode: RunLoopMode.defaultRunLoopMode)
+        self.displayLink.add(to: RunLoop.current, forMode: .default)
         self.displayLink.isPaused = true
         
         // Setup AVPlayerItemVideoOutput with the required pixelbuffer attributes.
@@ -72,6 +73,8 @@ class APLViewController: UIViewController, AVPlayerItemOutputPullDelegate, UIIma
         self.videoOutput = AVPlayerItemVideoOutput(pixelBufferAttributes: pixBuffAttributes)
         _myVideoOutputQueue = DispatchQueue(label: "myVideoOutputQueue", attributes: [])
         self.videoOutput.setDelegate(self, queue: _myVideoOutputQueue)
+        
+        self.requestPhotoPermission()
     }
     
     override func viewWillAppear(_ animated: Bool) {
@@ -157,8 +160,10 @@ class APLViewController: UIViewController, AVPlayerItemOutputPullDelegate, UIIma
         
         asset.loadValuesAsynchronously(forKeys: ["tracks"]) {
             
-            if asset.statusOfValue(forKey: "tracks", error: nil) == .loaded {
-                let tracks = asset.tracks(withMediaType: AVMediaTypeVideo)
+            var error: NSError? = nil
+            let status = asset.statusOfValue(forKey: "tracks", error: &error)
+            if status == .loaded {
+                let tracks = asset.tracks(withMediaType: .video)
                 if !tracks.isEmpty {
                     // Choose the first video track.
                     let videoTrack = tracks[0]
@@ -185,6 +190,8 @@ class APLViewController: UIViewController, AVPlayerItemOutputPullDelegate, UIIma
                         
                     }
                 }
+            } else {
+                print(status, error)
             }
             
         }
@@ -207,7 +214,7 @@ class APLViewController: UIViewController, AVPlayerItemOutputPullDelegate, UIIma
     
     override func observeValue(forKeyPath keyPath: String?, of object: Any?, change: [NSKeyValueChangeKey : Any]?, context: UnsafeMutableRawPointer?) {
         if context == &AVPlayerItemStatusContext {
-            if let status = AVPlayerStatus(rawValue: change![.newKey] as! Int) {
+            if let status = AVPlayer.Status(rawValue: change![.newKey] as! Int) {
                 switch status {
                 case .unknown:
                     break
@@ -215,6 +222,8 @@ class APLViewController: UIViewController, AVPlayerItemOutputPullDelegate, UIIma
                     self.playerView.presentationRect = player.currentItem!.presentationSize
                 case .failed:
                     self.stopLoadingAnimationAndHandleError(player.currentItem!.error as NSError?)
+                @unknown default:
+                    print("Unknown state: \(status.rawValue)")
                 }
             } else {
                 fatalError("Invalid value for NSKeyValueChangeNewKey: \(change![.newKey] ?? "nil")")
@@ -232,7 +241,7 @@ class APLViewController: UIViewController, AVPlayerItemOutputPullDelegate, UIIma
         player.actionAtItemEnd = .none
         _notificationToken = NotificationCenter.default.addObserver(forName: Notification.Name.AVPlayerItemDidPlayToEndTime, object: item, queue: OperationQueue.main) {note in
             // Simple item playback rewind.
-            self.player.currentItem?.seek(to: kCMTimeZero)
+            self.player.currentItem?.seek(to: .zero)
         }
     }
     
@@ -262,7 +271,7 @@ class APLViewController: UIViewController, AVPlayerItemOutputPullDelegate, UIIma
         /*
         Use __weak reference to self to ensure that a strong reference cycle is not formed between the view controller, player and notification block.
         */
-        _timeObserver = player.addPeriodicTimeObserver(forInterval: CMTimeMakeWithSeconds(1, 10), queue: DispatchQueue.main) {[weak self] time in
+        _timeObserver = player.addPeriodicTimeObserver(forInterval: CMTimeMakeWithSeconds(1, preferredTimescale: 10), queue: .main) {[weak self] time in
             self?.syncTimeLabel()
         } as AnyObject?
     }
@@ -276,13 +285,13 @@ class APLViewController: UIViewController, AVPlayerItemOutputPullDelegate, UIIma
     
     //MARK: - CADisplayLink Callback
     
-    func displayLinkCallback(_ sender: CADisplayLink) {
+    @objc func displayLinkCallback(_ sender: CADisplayLink) {
         /*
         The callback gets called once every Vsync.
         Using the display link's timestamp and duration we can compute the next time the screen will be refreshed, and copy the pixel buffer for that time
         This pixel buffer can then be processed and later rendered on screen.
         */
-        var outputItemTime = kCMTimeInvalid
+        var outputItemTime = CMTime.invalid
         
         // Calculate the nextVsync time which is when the screen will be refreshed next.
         let nextVSync = (sender.timestamp + sender.duration)
@@ -306,7 +315,8 @@ class APLViewController: UIViewController, AVPlayerItemOutputPullDelegate, UIIma
     
     //MARK: - Image Picker Controller Delegate
     
-    func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [String : Any]) {
+    func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey : Any]) {
+
         if UIDevice.current.userInterfaceIdiom == .pad {
             self.popover?.dismiss(animated: true)
         } else {
@@ -329,7 +339,7 @@ class APLViewController: UIViewController, AVPlayerItemOutputPullDelegate, UIIma
             self.currentTime.isHidden = false
         }
         
-        self.setupPlaybackForURL(info[UIImagePickerControllerReferenceURL] as! URL)
+        self.setupPlaybackForURL(info[.referenceURL] as! URL)
         
         picker.delegate = nil
     }
@@ -368,4 +378,20 @@ class APLViewController: UIViewController, AVPlayerItemOutputPullDelegate, UIIma
         return touch.view === self.view
     }
     
+    //### We need an explicit authorization to access properties of assets in Photos.
+    private func requestPhotoPermission() {
+        let status = PHPhotoLibrary.authorizationStatus()
+        switch status {
+        case .authorized:
+            return
+        case .denied:
+            return
+        case .notDetermined, .restricted:
+            PHPhotoLibrary.requestAuthorization {newStatus in
+                //Do nothing as for now...
+            }
+        @unknown default:
+            break
+        }
+    }
 }
